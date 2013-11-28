@@ -4,7 +4,7 @@
     "description": "Simple process wrapper component",
     "keywords": [ ],
     "homepage": "",
-    "license": "BSD",
+    "license": "MIT",
     "authors": [
         {
             "name": "Jan Michalowsky",
