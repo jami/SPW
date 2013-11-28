@@ -1,0 +1,24 @@
+{
+    "name": "SPW",
+    "type": "library",
+    "description": "Simple process wrapper component",
+    "keywords": [ ],
+    "homepage": "",
+    "license": "BSD",
+    "authors": [
+        {
+            "name": "Jan Michalowsky",
+            "email": "sejamich@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.3"
+    },
+    "autoload": {
+        "psr-0": { "SPW\\": "" }
+    },
+    "target-dir": "SPW",
+    "minimum-stability": "dev",
+    "extra": {
+    }
+}
