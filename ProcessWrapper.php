@@ -20,17 +20,20 @@ class ProcessWrapper
     protected $_isRunning   = false;
     protected $_pid         = false;
     protected $_pipes       = null;
-    protected $_descriptor  = null;
     protected $_exitCode    = 0;
     protected $_options     = array();
     protected $_default     = array();
-    protected $_output      = array();
-    protected $_input       = null;
     protected $_status      = array();
-    protected $_outputIndex = 0;
     protected $_processTime = 0;
-
-    protected $_appendBufferCallback = null;
+    protected $_environment = array();
+    // input data
+    protected $_input       = null;
+    // result buffer
+    protected $_output      = array();
+    protected $_error       = array();
+    // callbacks
+    protected $_appendOutputCallback = null;
+    protected $_appendErrorCallback  = null;
     protected $_startProcessCallback = null;
     protected $_stopProcessCallback  = null;
 
@@ -40,30 +43,24 @@ class ProcessWrapper
      * @param string $workingDirectory
      * @throws \Exception
      */
-    public function __construct($command, $workingDirectory = null)
+    public function __construct($command, $env = array(), $workingDirectory = null)
     {
         if (true === defined('PHP_WINDOWS_VERSION_BUILD')) {
             throw new \Exception('Process wrapper will not work under Windows');
         }
 
-        $this->_command = $command;
-        $this->_workingDir = $workingDirectory;
+        $this->_command     = $command;
+        $this->_environment = $env;
+        $this->_workingDir  = $workingDirectory;
 
         // set cwd because the default value can vary
         if (null === $this->_workingDir) {
             $this->_workingDir = getcwd();
         }
 
-        // stderr got 'a' cause of a possible buffer overrun block on 'w'
-        $this->_descriptor = array(
-            self::PIPE_STDIN  => array('pipe', 'r'),
-            self::PIPE_STDOUT => array('pipe', 'w'),
-            self::PIPE_STDERR => array('file', 'php://stderr', 'a')
-        );
-
         $this->_default = array(
             'suppress_errors' => true,
-            'binary_pipes' => true
+            'binary_pipes'    => true
         );
 
         $this->_options = $this->_default;
@@ -84,26 +81,32 @@ class ProcessWrapper
     {
         $this->_isRunning   = false;
         $this->_output      = array();
+        $this->_error       = array();
         $this->_proc        = null;
         $this->_outputIndex = 0;
     }
 
     /**
      * start the process asynchronously (non-blocking)
-     * @param array $env
      */
-    public function start($env = array())
+    public function start()
     {
         $this->reset();
+
+        $descriptor = array(
+            self::PIPE_STDIN  => array('pipe', 'r'),
+            self::PIPE_STDOUT => array('pipe', 'w'),
+            self::PIPE_STDERR => array('pipe', 'w')
+        );
 
         $this->_processTime = microtime(true);
 
         $this->_proc = proc_open(
             $this->_command,
-            $this->_descriptor,
+            $descriptor,
             $this->_pipes,
             $this->_workingDir,
-            $env,
+            $this->_environment,
             $this->_options
         );
 
@@ -111,11 +114,13 @@ class ProcessWrapper
             throw new \Exception("Can't open process {$this->_command}");
         }
 
+        // get process informations
         $this->_status = proc_get_status($this->_proc);
         $this->_pid = $this->_status['pid'];
-
+        // set pipes to non blocking
         stream_set_blocking($this->_pipes[self::PIPE_STDIN], 0);
         stream_set_blocking($this->_pipes[self::PIPE_STDOUT], 0);
+        stream_set_blocking($this->_pipes[self::PIPE_STDERR], 0);
 
         // pass input
         if (is_string($this->_input)
@@ -149,8 +154,9 @@ class ProcessWrapper
             fclose($this->_pipes[self::PIPE_STDIN]);
         }
 
-        // close stdout
+        // close stdout and stderr
         fclose($this->_pipes[self::PIPE_STDOUT]);
+        fclose($this->_pipes[self::PIPE_STDERR]);
 
         $this->_exitCode = proc_close($this->_proc);
 
@@ -163,17 +169,88 @@ class ProcessWrapper
     }
 
     /**
-     * append buffer to output buffer
+     * read stream
+     */
+    public function readStream()
+    {
+        $pipes = $this->getPipes();
+
+        // get the stderr
+        $buffer = stream_get_contents($pipes[self::PIPE_STDERR]);
+        if (false == empty($buffer)) {
+            $this->appendErrorBuffer($buffer);
+        }
+
+        // get the stdout
+        $buffer = stream_get_contents($pipes[self::PIPE_STDOUT]);
+        if (false == empty($buffer)) {
+            $this->appendOutputBuffer($buffer);
+        }
+
+        // check for end of stream
+        if (feof($pipes[self::PIPE_STDOUT])) {
+            $this->stop();
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * wait until process finished
+     */
+    public function wait()
+    {
+        $writePipes  = null;
+        $exceptPipes = null;
+        $wait        = true;
+
+        $readPipes   = array(
+            $this->_pipes[self::PIPE_STDOUT],
+            $this->_pipes[self::PIPE_STDERR]
+        );
+
+        // wait until stdout is closed
+        while ($wait) {
+            $selected = stream_select($readPipes, $writePipes, $exceptPipes, ProcessWrapper::STREAM_SELECT_TIMEOUT);
+
+            if (false === $selected) {
+                throw new \RuntimeException('Process interrupted');
+            }
+
+            if ($selected > 0) {
+                $wait = $this->readStream();
+            }
+        }
+    }
+
+    /**
+     * append error buffer
      * @param string $buffer
      */
-    public function appendBuffer($buffer)
+    private function appendErrorBuffer($buffer)
+    {
+        $buffer = trim($buffer);
+        $this->_error[] = $buffer;
+
+        if ($this->_appendErrorCallback != null
+            && is_callable($this->_appendErrorCallback)) {
+            $this->_appendErrorCallback->__invoke($this, $buffer);
+        }
+    }
+
+    /**
+     * append output buffer
+     * @param string $buffer
+     */
+    private function appendOutputBuffer($buffer)
     {
         $buffer = trim($buffer);
         $this->_output[] = $buffer;
 
-        if ($this->_appendBufferCallback != null
-            && is_callable($this->_appendBufferCallback)) {
-            $this->_appendBufferCallback->__invoke($this, $buffer);
+        if ($this->_appendOutputCallback != null
+            && is_callable($this->_appendOutputCallback)) {
+            $this->_appendOutputCallback->__invoke($this, $buffer);
         }
     }
 
@@ -192,6 +269,14 @@ class ProcessWrapper
     public function getOutput()
     {
         return $this->_output;
+    }
+
+    /**
+     * get the output buffer
+     */
+    public function getError()
+    {
+        return $this->_error;
     }
 
     /**
@@ -236,84 +321,29 @@ class ProcessWrapper
     }
 
     /**
-     * read stream
-     */
-    public function readStream()
-    {
-        $pipes = $this->getPipes();
-
-        // get the stdout
-        $buffer = stream_get_contents($pipes[1]);
-        if (false == empty($buffer)) {
-            $this->appendBuffer($buffer);
-        }
-
-        // check for end of stream
-        if (feof($pipes[1])) {
-            $this->stop();
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * returns the latest output buffer
-     * @return array
-     */
-    public function getLatestOutputBuffer($rewind = false)
-    {
-        $lastIndex   = $this->_outputIndex;
-        $outputSlice = array();
-        if (count($this->_output) > ($lastIndex + 1)) {
-            $outputSlice = array_slice($this->_output, $lastIndex);
-        }
-
-        if (false == $rewind) {
-            $this->_outputIndex = count($this->_output) - 1;
-        }
-
-        return $outputSlice;
-    }
-
-    /**
-     * wait until process finished
-     */
-    public function wait()
-    {
-        $readPipes  = array($this->_pipes[self::PIPE_STDOUT]);
-        $writePipes = null;
-        $errorPipes = null;
-        $wait       = true;
-
-        while ($wait) {
-            $selected = stream_select($readPipes, $writePipes, $errorPipes, ProcessWrapper::STREAM_SELECT_TIMEOUT);
-
-            if (false === $selected) {
-                throw new \RuntimeException('Process interrupted');
-            }
-
-            if ($selected > 0) {
-                $wait = $this->readStream();
-            }
-        }
-    }
-
-    /**
      * set options that should be available in $_ENV
      */
     public function setOptions(array $options)
     {
-        $this->_options = array_merge(options, $this->_default);
+        $this->_options = array_merge($options, $this->_default);
     }
 
     /**
-     * append buffer callback
+     * append output callback
      * @param Closure $callback
      */
-    public function setAppendBufferCallback(\Closure $callback)
+    public function setAppendOutputCallback(\Closure $callback)
     {
-        $this->_appendBufferCallback = $callback;
+        $this->_appendOutputCallback = $callback;
+    }
+
+    /**
+     * append error callback
+     * @param Closure $callback
+     */
+    public function setAppendErrorCallback(\Closure $callback)
+    {
+        $this->_appendErrorCallback = $callback;
     }
 
     /**

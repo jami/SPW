@@ -12,9 +12,9 @@ use SPW\ProcessWrapper;
 
 class ProcessQueue
 {
+    protected $_processTime    = 0;
     protected $_queue          = array();
     protected $_worker         = array();
-    protected $_outputCallback = null;
 
     /**
      * attach process
@@ -43,6 +43,8 @@ class ProcessQueue
         $writePipes = null;
         $errorPipes = null;
 
+        $this->_processTime = microtime(true);
+
         // start all processes
         foreach ($this->_queue as $process) {
             $this->_worker[] = $process;
@@ -55,6 +57,7 @@ class ProcessQueue
             foreach ($this->_worker as $process) {
                 $pipes       = $process->getPipes();
                 $readPipes[] = $pipes[ProcessWrapper::PIPE_STDOUT];
+                $readPipes[] = $pipes[ProcessWrapper::PIPE_STDERR];
             }
 
             // wait until readable pipe is selected
@@ -72,14 +75,16 @@ class ProcessQueue
                 }
             }
         }
+
+        $this->_processTime = microtime(true) - $this->_processTime;
     }
 
     /**
-     * set the general 'readable output appended' callback
-     * @param \Closure $callback
+     * get overall process time
+     * @return float
      */
-    public function setOutputCallback(\Closure $callback)
+    public function getProcessTime()
     {
-        $this->_outputCallback = $callback;
+        return $this->_processTime;
     }
 }

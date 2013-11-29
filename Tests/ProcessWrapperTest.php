@@ -51,6 +51,46 @@ class ProcessWrapperTest
     /**
      * @group unittest
      */
+    public function testProcessErrorBuffer()
+    {
+        $spw = new ProcessWrapper('php');
+        $spw->setInput('<?php foobarfoobarfoooo("meh"); ?>');
+        $spw->start();
+        $spw->wait();
+
+        $this->assertEquals(
+            array('PHP Fatal error:  Call to undefined function foobarfoobarfoooo() in - on line 1'),
+            $spw->getError()
+        );
+    }
+
+    /**
+     * @group unittest
+     */
+    public function testProcessErrorBufferCallback()
+    {
+        $result = '';
+
+        $spw = new ProcessWrapper('php');
+        $spw->setInput('<?php foobarfoobarfoooo("meh"); ?>');
+
+        // set callback
+        $spw->setAppendErrorCallback(function ($process, $error) use (&$result) {
+            $result = $error;
+        });
+
+        $spw->start();
+        $spw->wait();
+
+        $this->assertEquals(
+            'PHP Fatal error:  Call to undefined function foobarfoobarfoooo() in - on line 1',
+            $result
+        );
+    }
+
+    /**
+     * @group unittest
+     */
     public function testProcessTime()
     {
         $spw = new ProcessWrapper('php');
