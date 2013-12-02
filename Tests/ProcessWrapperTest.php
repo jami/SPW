@@ -51,6 +51,47 @@ class ProcessWrapperTest
     /**
      * @group unittest
      */
+    public function testEnvPass()
+    {
+        $spw = new ProcessWrapper('php');
+        $env = array(
+            'var1' => 42,
+            'var2' => (string)serialize(array(1,2,3))
+        );
+
+        $spw->setEnvironment($env);
+
+        $spw->setInput('<?php echo $_SERVER["var1"] . "," . $_SERVER["var2"]; ?>');
+        $spw->start();
+        $spw->wait();
+
+        $buffer = $spw->getOutput();
+        $this->assertEquals("{$env['var1']},{$env['var2']}", $buffer[0]);
+    }
+
+    /**
+     * @group unittest
+     */
+    public function testProcessLineBufferOutput()
+    {
+        $spw = new ProcessWrapper('php');
+        $spw->setBufferType(ProcessWrapper::BUFFER_TYPE_LINE);
+        $spw->setInput('<?php echo "abc" . PHP_EOL; sleep(1); echo "def" . PHP_EOL; ?>');
+
+        $spw->start();
+        $spw->wait();
+        $this->assertEquals(
+            array(
+                'abc',
+                'def'
+            ),
+            $spw->getOutput()
+        );
+    }
+
+    /**
+     * @group unittest
+     */
     public function testProcessErrorBuffer()
     {
         $spw = new ProcessWrapper('php');

@@ -2,6 +2,7 @@
 /**
  * SPW - Simple process wrapper
  * This is a simple wrapper script for process handling
+ *
  * @author Jan Michalowsky - <sejamich@gmail.com>
  */
 
@@ -13,6 +14,8 @@ class ProcessWrapper
     const PIPE_STDOUT           = 1;
     const PIPE_STDERR           = 2;
     const STREAM_SELECT_TIMEOUT = 10;
+    const BUFFER_TYPE_LINE      = 1;
+    const BUFFER_TYPE_BINARY    = 2;
 
     protected $_proc        = null;
     protected $_command     = null;
@@ -26,6 +29,7 @@ class ProcessWrapper
     protected $_status      = array();
     protected $_processTime = 0;
     protected $_environment = array();
+    protected $_bufferType  = 1;
     // input data
     protected $_input       = null;
     // result buffer
@@ -52,6 +56,7 @@ class ProcessWrapper
         $this->_command     = $command;
         $this->_environment = $env;
         $this->_workingDir  = $workingDirectory;
+        $this->_bufferType  = self::BUFFER_TYPE_LINE;
 
         // set cwd because the default value can vary
         if (null === $this->_workingDir) {
@@ -245,8 +250,13 @@ class ProcessWrapper
      */
     private function appendOutputBuffer($buffer)
     {
-        $buffer = trim($buffer);
-        $this->_output[] = $buffer;
+        if (self::BUFFER_TYPE_BINARY == $this->_bufferType) {
+            $this->_output[0] += $buffer;
+        } else if (self::BUFFER_TYPE_LINE == $this->_bufferType) {
+            $buffer = trim($buffer);
+            $lineBuffer = explode(PHP_EOL, $buffer);
+            $this->_output = array_merge($this->_output, $lineBuffer);
+        }
 
         if ($this->_appendOutputCallback != null
             && is_callable($this->_appendOutputCallback)) {
@@ -261,6 +271,17 @@ class ProcessWrapper
     public function setInput($input)
     {
         $this->_input = $input;
+    }
+
+    /**
+     * set buffer type
+     * @param int $type
+     */
+    public function setBufferType($type)
+    {
+        if (in_array($type, array(self::BUFFER_TYPE_BINARY, self::BUFFER_TYPE_LINE))) {
+            $this->_bufferType = $type;
+        }
     }
 
     /**
@@ -300,7 +321,8 @@ class ProcessWrapper
      */
     public function isRunning()
     {
-        return $this->_isRunning;
+        $this->_status = proc_get_status($this->_proc);
+        return $this->_status['running'];
     }
 
     /**
@@ -309,6 +331,14 @@ class ProcessWrapper
     public function getPid()
     {
         return $this->_pid;
+    }
+
+    /**
+     *
+     */
+    public function setEnvironment(array $env)
+    {
+        $this->_environment = $env;
     }
 
     /**

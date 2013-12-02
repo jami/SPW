@@ -23,6 +23,7 @@ class ProcessQueue
     public function attachProcess(ProcessWrapper $process)
     {
         $this->_queue[] = $process;
+        return $this;
     }
 
     /**
