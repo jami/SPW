@@ -43,8 +43,8 @@ class ProcessWrapper
 
     /**
      * constructor
-     * @param string $command
-     * @param string $workingDirectory
+     * @param  string     $command
+     * @param  string     $workingDirectory
      * @throws \Exception
      */
     public function __construct($command, $env = array(), $workingDirectory = null)
@@ -195,6 +195,7 @@ class ProcessWrapper
         // check for end of stream
         if (feof($pipes[self::PIPE_STDOUT])) {
             $this->stop();
+
             return false;
         }
 
@@ -252,7 +253,7 @@ class ProcessWrapper
     {
         if (self::BUFFER_TYPE_BINARY == $this->_bufferType) {
             $this->_output[0] += $buffer;
-        } else if (self::BUFFER_TYPE_LINE == $this->_bufferType) {
+        } elseif (self::BUFFER_TYPE_LINE == $this->_bufferType) {
             $buffer = trim($buffer);
             $lineBuffer = explode(PHP_EOL, $buffer);
             $this->_output = array_merge($this->_output, $lineBuffer);
@@ -322,6 +323,7 @@ class ProcessWrapper
     public function isRunning()
     {
         $this->_status = proc_get_status($this->_proc);
+
         return $this->_status['running'];
     }
 

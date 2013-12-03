@@ -3,7 +3,6 @@
 namespace SPW;
 
 use SPW\ProcessWrapper;
-use SPW\ProcessQueue;
 
 class ProcessWrapperTest
     extends \PHPUnit_Framework_TestCase
@@ -56,7 +55,7 @@ class ProcessWrapperTest
         $spw = new ProcessWrapper('php');
         $env = array(
             'var1' => 42,
-            'var2' => (string)serialize(array(1,2,3))
+            'var2' => (string) serialize(array(1,2,3))
         );
 
         $spw->setEnvironment($env);

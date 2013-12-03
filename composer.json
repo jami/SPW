@@ -1,5 +1,5 @@
 {
-    "name": "SPW",
+    "name": "thejami/spw",
     "type": "library",
     "description": "Simple process wrapper component",
     "keywords": [ ],
