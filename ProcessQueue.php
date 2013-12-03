@@ -37,9 +37,8 @@ class ProcessQueue
 
     /**
      * starts all processes in the queue and wait until they done
-     * @param array $env
      */
-    public function wait($env = array())
+    public function wait()
     {
         $writePipes = null;
         $errorPipes = null;
@@ -49,7 +48,7 @@ class ProcessQueue
         // start all processes
         foreach ($this->_queue as $process) {
             $this->_worker[] = $process;
-            $process->start($env);
+            $process->start();
         }
 
         // waiting loop
