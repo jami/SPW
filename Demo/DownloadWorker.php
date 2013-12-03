@@ -13,4 +13,3 @@ $data = curl_exec($ch);
 
 curl_close($ch);
 file_put_contents($file, $data);
-

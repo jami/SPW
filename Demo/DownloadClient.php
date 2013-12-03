@@ -2,8 +2,8 @@
 
 namespace DownloadClient;
 
-require_once('../ProcessWrapper.php');
-require_once('../ProcessQueue.php');
+require_once '../ProcessWrapper.php';
+require_once '../ProcessQueue.php';
 
 use SPW\ProcessWrapper;
 use SPW\ProcessQueue;
@@ -14,7 +14,7 @@ if (count($argv) < 3) {
 }
 
 $url       = $argv[1];
-$numWorker = (int)$argv[2];
+$numWorker = (int) $argv[2];
 
 //get header information
 $ch = curl_init();
@@ -87,4 +87,3 @@ foreach ($tmpFiles as $tmp) {
 }
 
 fclose($fh);
-
